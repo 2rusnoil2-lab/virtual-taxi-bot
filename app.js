@@ -1,53 +1,73 @@
 // Инициализация Telegram Web App
 const tg = window.Telegram.WebApp;
-tg.expand(); // Разворачиваем на весь экран
-tg.enableClosingConfirmation(); // Спрашиваем подтверждение при закрытии
+tg.expand();
+tg.enableClosingConfirmation();
 
-// Данные о пользователе (можно использовать для персонализации)
+// Данные о пользователе
 const user = tg.initDataUnsafe?.user;
 console.log('Пользователь:', user);
 
-// База данных таксистов (в реальном проекте загружается с сервера)
+// Расширенная бада таксистов с ролями
 const drivers = [
     {
         id: 1,
         name: 'Анна',
-        specialty: 'Слушатель',
-        price: 500,
-        type: 'listener',
-        avatar: '👩'
+        type: 'psychologist',
+        role: 'Психолог',
+        description: 'Клинический психолог, 10 лет опыта. Помогаю с тревогой и отношениями',
+        price: 900,
+        avatar: '👩‍⚕️',
+        experience: '10 лет'
     },
     {
         id: 2,
         name: 'Дмитрий',
-        specialty: 'Психолог',
-        price: 800,
-        type: 'coach',
-        avatar: '👨'
+        type: 'psychologist',
+        role: 'Психолог',
+        description: 'Семейный психолог, работаю с парами и индивидуально',
+        price: 850,
+        avatar: '👨‍⚕️',
+        experience: '8 лет'
     },
     {
         id: 3,
         name: 'Елена',
-        specialty: 'Собеседник',
+        type: 'listener',
+        role: 'Слушатель',
+        description: 'Просто выслушаю и поддержу. Без советов, с теплотой',
         price: 400,
-        type: 'chat',
-        avatar: '👩'
+        avatar: '👩',
+        experience: '3 года'
     },
     {
         id: 4,
         name: 'Михаил',
-        specialty: 'Слушатель',
-        price: 450,
         type: 'listener',
-        avatar: '👨'
+        role: 'Слушатель',
+        description: 'Эмпатичный слушатель, помогаю выговориться',
+        price: 450,
+        avatar: '👨',
+        experience: '2 года'
     },
     {
         id: 5,
         name: 'Ольга',
-        specialty: 'Психолог',
-        price: 900,
-        type: 'coach',
-        avatar: '👩'
+        type: 'chat',
+        role: 'Собеседник',
+        description: 'Интересный собеседник, поговорю на любые темы',
+        price: 350,
+        avatar: '👩‍🎤',
+        experience: '5 лет'
+    },
+    {
+        id: 6,
+        name: 'Алексей',
+        type: 'chat',
+        role: 'Собеседник',
+        description: 'Философ, путешественник, всегда есть о чём поговорить',
+        price: 400,
+        avatar: '👨‍🌾',
+        experience: '4 года'
     }
 ];
 
@@ -58,22 +78,22 @@ let currentFilter = 'all';
 function renderDrivers(filter = 'all') {
     const container = document.getElementById('driversList');
     
-    // Фильтруем таксистов
+    // Фильтрация
     let filteredDrivers = drivers;
     if (filter !== 'all') {
         filteredDrivers = drivers.filter(d => d.type === filter);
     }
     
-    // Очищаем контейнер
+    // Очистка контейнера
     container.innerHTML = '';
     
-    // Если никого нет
+    // Проверка на пустой результат
     if (filteredDrivers.length === 0) {
-        container.innerHTML = '<div class="loading">Нет свободных водителей</div>';
+        container.innerHTML = '<div class="loading">Нет свободных водителей в этой категории</div>';
         return;
     }
     
-    // Создаем карточки
+    // Создание карточек
     filteredDrivers.forEach(driver => {
         const card = document.createElement('div');
         card.className = 'driver-card';
@@ -81,7 +101,8 @@ function renderDrivers(filter = 'all') {
             <div class="driver-avatar">${driver.avatar}</div>
             <div class="driver-info">
                 <div class="driver-name">${driver.name}</div>
-                <div class="driver-specialty">${driver.specialty}</div>
+                <div class="driver-specialty">${driver.role} · ${driver.experience}</div>
+                <div class="driver-description">${driver.description}</div>
                 <div class="driver-price">${driver.price}₽ / 30 мин</div>
             </div>
             <button class="select-btn" onclick="selectDriver(${driver.id})">Выбрать</button>
@@ -100,39 +121,49 @@ window.selectDriver = function(driverId) {
         action: 'select_driver',
         driverId: driver.id,
         driverName: driver.name,
+        driverRole: driver.role,
         price: driver.price
     }));
     
-    // Показываем уведомление (опционально)
-    tg.HapticFeedback.impactOccurred('medium');
+    // Виброотклик (если поддерживается)
+    if (tg.HapticFeedback) {
+        tg.HapticFeedback.impactOccurred('medium');
+    }
+    
+    // Можно показать уведомление перед закрытием
+    tg.showAlert(`Вы выбрали ${driver.name} (${driver.role}). Сейчас откроется чат с ботом для подтверждения.`);
     
     // Закрываем веб-приложение
-    tg.close();
+    setTimeout(() => {
+        tg.close();
+    }, 500);
 };
 
 // Обработчики фильтров
 document.querySelectorAll('.filter-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-        // Обновляем активный класс
         document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         
-        // Получаем фильтр
         const filter = btn.dataset.filter;
         currentFilter = filter;
-        
-        // Перерисовываем
         renderDrivers(filter);
     });
+});
+
+// Главная кнопка (опционально)
+tg.MainButton.setText('Найти такси');
+tg.MainButton.show();
+tg.MainButton.onClick(() => {
+    // Прокрутка к списку
+    document.querySelector('.drivers-list').scrollIntoView({ behavior: 'smooth' });
+    if (tg.HapticFeedback) {
+        tg.HapticFeedback.impactOccurred('light');
+    }
 });
 
 // Начальная загрузка
 renderDrivers('all');
 
-// Настройка главной кнопки (если нужно)
-tg.MainButton.setText('Найти такси');
-tg.MainButton.show();
-tg.MainButton.onClick(() => {
-    // Можно открыть фильтр или просто показать сообщение
-    tg.HapticFeedback.impactOccurred('light');
-});
+// Отправляем информацию о загрузке приложения (опционально)
+tg.ready();
