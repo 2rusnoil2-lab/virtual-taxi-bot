@@ -7,7 +7,7 @@ tg.enableClosingConfirmation();
 const user = tg.initDataUnsafe?.user;
 console.log('Пользователь:', user);
 
-// Расширенная бада таксистов с ролями
+// Расширенная база таксистов с ролями
 const drivers = [
     {
         id: 1,
