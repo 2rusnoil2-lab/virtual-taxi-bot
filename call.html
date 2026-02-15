@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Виртуальное такси - звонок</title>
+    <script src="https://unpkg.com/livekit-client/dist/livekit-client.umd.js"></script>
+    <style>
+        body { margin: 0; padding: 20px; font-family: sans-serif; background: #1a1a1a; color: white; }
+        #status { margin-bottom: 20px; padding: 10px; background: #333; border-radius: 5px; }
+        #video-container { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+        .participant { background: #2a2a2a; border-radius: 10px; overflow: hidden; width: 45%; min-width: 300px; }
+        .participant video { width: 100%; height: auto; display: block; background: #000; }
+        .participant .label { padding: 8px; text-align: center; background: #3a3a3a; }
+        .controls { margin-top: 20px; text-align: center; }
+        button { padding: 12px 24px; margin: 0 10px; font-size: 16px; cursor: pointer; border: none; border-radius: 5px; background: #4CAF50; color: white; }
+        button.danger { background: #f44336; }
+    </style>
+</head>
+<body>
+    <div id="status">🔌 Подключение к звонку...</div>
+    <div id="video-container" style="display: none;"></div>
+    <div class="controls" style="display: none;">
+        <button id="mute-btn">🔊 Выключить микрофон</button>
+        <button id="video-btn">📹 Выключить видео</button>
+        <button id="leave-btn" class="danger">❌ Покинуть звонок</button>
+    </div>
+
+    <script>
+        (async function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const livekitUrl = urlParams.get('url');
+            const roomName = urlParams.get('room');
+            const token = urlParams.get('token');
+
+            const statusDiv = document.getElementById('status');
+            const videoContainer = document.getElementById('video-container');
+            const controlsDiv = document.querySelector('.controls');
+
+            if (!livekitUrl || !roomName || !token) {
+                statusDiv.innerText = '❌ Ошибка: Не хватает параметров.';
+                return;
+            }
+
+            statusDiv.innerText = `🔄 Подключение к комнате ${roomName}...`;
+
+            try {
+                const room = new LivekitClient.Room({
+                    adaptiveStream: true,
+                    dynacast: true,
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' }
+                    ]
+                });
+
+                room.on(LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
+                    const element = track.attach();
+                    let participantDiv = document.getElementById(`p-${participant.identity}`);
+                    
+                    if (!participantDiv) {
+                        participantDiv = document.createElement('div');
+                        participantDiv.id = `p-${participant.identity}`;
+                        participantDiv.className = 'participant';
+                        
+                        const label = document.createElement('div');
+                        label.className = 'label';
+                        label.innerText = participant.name || participant.identity;
+                        participantDiv.appendChild(label);
+                        
+                        videoContainer.appendChild(participantDiv);
+                    }
+                    
+                    const videoWrapper = document.createElement('div');
+                    videoWrapper.appendChild(element);
+                    participantDiv.appendChild(videoWrapper);
+                });
+
+                await room.connect(livekitUrl, token);
+                await room.localParticipant.enableCameraAndMicrophone();
+                
+                statusDiv.style.display = 'none';
+                videoContainer.style.display = 'flex';
+                controlsDiv.style.display = 'block';
+
+                let audioEnabled = true;
+                let videoEnabled = true;
+
+                document.getElementById('mute-btn').onclick = () => {
+                    audioEnabled = !audioEnabled;
+                    room.localParticipant.setMicrophoneEnabled(audioEnabled);
+                    document.getElementById('mute-btn').innerHTML = audioEnabled ? '🔊 Выключить микрофон' : '🔇 Включить микрофон';
+                };
+
+                document.getElementById('video-btn').onclick = () => {
+                    videoEnabled = !videoEnabled;
+                    room.localParticipant.setCameraEnabled(videoEnabled);
+                    document.getElementById('video-btn').innerHTML = videoEnabled ? '📹 Выключить видео' : '📹 Включить видео';
+                };
+
+                document.getElementById('leave-btn').onclick = () => {
+                    room.disconnect();
+                    window.close();
+                };
+
+            } catch (error) {
+                console.error(error);
+                statusDiv.innerText = `❌ Ошибка: ${error.message}`;
+            }
+        })();
+    </script>
+</body>
+</html>
