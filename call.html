@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Виртуальное такси - Видеозвонок</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #1a1a1a;
+            color: white;
+        }
+        
+        #room-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+        
+        #loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            transition: opacity 0.5s;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        #loading-screen.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .loader {
+            border: 5px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top: 5px solid white;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        #loading-title {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        
+        #loading-subtitle {
+            font-size: 16px;
+            opacity: 0.9;
+            margin-bottom: 20px;
+        }
+        
+        #error-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        #error-screen.visible {
+            display: flex;
+        }
+        
+        .error-icon {
+            font-size: 60px;
+            margin-bottom: 20px;
+        }
+        
+        #error-title {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        
+        #error-message {
+            font-size: 16px;
+            opacity: 0.9;
+            margin-bottom: 30px;
+            max-width: 300px;
+        }
+        
+        .retry-btn {
+            background: white;
+            color: #f5576c;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 30px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            transition: transform 0.2s;
+        }
+        
+        .retry-btn:hover {
+            transform: scale(1.05);
+        }
+        
+        .retry-btn:active {
+            transform: scale(0.95);
+        }
+        
+        #controls {
+            position: absolute;
+            bottom: 30px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            z-index: 100;
+            padding: 0 20px;
+            flex-wrap: wrap;
+        }
+        
+        .control-btn {
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 2px solid rgba(255,255,255,0.2);
+            color: white;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        
+        .control-btn span {
+            font-size: 10px;
+            margin-top: 2px;
+        }
+        
+        .control-btn:hover {
+            background: rgba(255,255,255,0.2);
+            transform: translateY(-2px);
+        }
+        
+        .control-btn:active {
+            transform: translateY(0);
+        }
+        
+        .control-btn.end-call {
+            background: #dc3545;
+            border-color: #ff6b7b;
+        }
+        
+        .control-btn.end-call:hover {
+            background: #c82333;
+        }
+        
+        .control-btn.muted {
+            background: rgba(220, 53, 69, 0.8);
+            border-color: #ff6b7b;
+        }
+        
+        .control-btn.video-off {
+            background: rgba(220, 53, 69, 0.8);
+            border-color: #ff6b7b;
+        }
+        
+        #status-message {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 30px;
+            font-size: 14px;
+            text-align: center;
+            z-index: 200;
+            border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+        
+        #status-message.visible {
+            opacity: 1;
+        }
+        
+        #participant-info {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            z-index: 200;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        
+        #video-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+        
+        .participant-video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        #self-video {
+            position: absolute;
+            bottom: 100px;
+            right: 20px;
+            width: 120px;
+            height: 160px;
+            border-radius: 10px;
+            object-fit: cover;
+            border: 2px solid rgba(255,255,255,0.3);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            cursor: pointer;
+            transition: all 0.2s;
+            z-index: 150;
+        }
+        
+        #self-video:hover {
+            transform: scale(1.05);
+            border-color: white;
+        }
+        
+        #self-video.minimized {
+            width: 80px;
+            height: 106px;
+        }
+        
+        #self-video.hidden {
+            display: none;
+        }
+        
+        @media (max-width: 600px) {
+            #self-video {
+                width: 100px;
+                height: 133px;
+                bottom: 90px;
+            }
+            
+            .control-btn {
+                width: 50px;
+                height: 50px;
+                font-size: 20px;
+            }
+            
+            #loading-title {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="room-container">
+        <!-- Экран загрузки -->
+        <div id="loading-screen">
+            <div class="loader"></div>
+            <div id="loading-title">Подключение к звонку...</div>
+            <div id="loading-subtitle">Пожалуйста, подождите</div>
+            <div style="font-size: 12px; opacity: 0.7;">Виртуальное такси</div>
+        </div>
+        
+        <!-- Экран ошибки -->
+        <div id="error-screen">
+            <div class="error-icon">😕</div>
+            <div id="error-title">Ошибка подключения</div>
+            <div id="error-message">Не удалось подключиться к звонку</div>
+            <button class="retry-btn" onclick="location.reload()">Повторить</button>
+        </div>
+        
+        <!-- Контейнер для видео -->
+        <div id="video-container">
+            <video id="remote-video" class="participant-video" autoplay playsinline></video>
+            <video id="self-video" autoplay playsinline muted></video>
+        </div>
+        
+        <!-- Информация об участниках -->
+        <div id="participant-info">
+            <span id="participant-count">1</span> участник
+        </div>
+        
+        <!-- Сообщения о статусе -->
+        <div id="status-message"></div>
+        
+        <!-- Панель управления -->
+        <div id="controls">
+            <div class="control-btn" id="mute-btn" onclick="toggleMute()">
+                🎤
+                <span>Микрофон</span>
+            </div>
+            <div class="control-btn" id="video-btn" onclick="toggleVideo()">
+                📹
+                <span>Видео</span>
+            </div>
+            <div class="control-btn end-call" id="end-call-btn" onclick="endCall()">
+                ❌
+                <span>Выйти</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@livekit/components-styling@1.0.0/dist/index.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/livekit-client@1.15.0/dist/livekit-client.umd.min.js"></script>
+    
+    <script>
+        // Получаем параметры из URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const livekitUrl = urlParams.get('url');
+        const roomName = urlParams.get('room');
+        const token = urlParams.get('token');
+        
+        // Глобальные переменные
+        let room;
+        let localTrack;
+        let localVideoTrack;
+        let localAudioTrack;
+        let isMuted = false;
+        let isVideoEnabled = true;
+        let participants = new Map();
+        
+        // Элементы DOM
+        const loadingScreen = document.getElementById('loading-screen');
+        const errorScreen = document.getElementById('error-screen');
+        const errorMessage = document.getElementById('error-message');
+        const remoteVideo = document.getElementById('remote-video');
+        const selfVideo = document.getElementById('self-video');
+        const muteBtn = document.getElementById('mute-btn');
+        const videoBtn = document.getElementById('video-btn');
+        const participantCount = document.getElementById('participant-count');
+        const statusMessage = document.getElementById('status-message');
+        
+        // Показываем статус
+        function showStatus(msg, duration = 3000) {
+            statusMessage.textContent = msg;
+            statusMessage.classList.add('visible');
+            setTimeout(() => {
+                statusMessage.classList.remove('visible');
+            }, duration);
+        }
+        
+        // Проверяем наличие параметров
+        if (!livekitUrl || !roomName || !token) {
+            errorMessage.textContent = 'Отсутствуют параметры подключения';
+            loadingScreen.classList.add('hidden');
+            errorScreen.classList.add('visible');
+        } else {
+            // Инициализируем подключение
+            initializeCall();
+        }
+        
+        async function initializeCall() {
+            try {
+                showStatus('Подключение к серверу...');
+                
+                // Создаём комнату
+                room = new LivekitClient.Room({
+                    adaptiveStream: true,
+                    dynacast: true,
+                    videoCaptureDefaults: {
+                        resolution: LivekitClient.VideoPresets.h720.resolution,
+                    },
+                });
+                
+                // Обработчики событий
+                room.on(LivekitClient.RoomEvent.TrackSubscribed, handleTrackSubscribed);
+                room.on(LivekitClient.RoomEvent.TrackUnsubscribed, handleTrackUnsubscribed);
+                room.on(LivekitClient.RoomEvent.ParticipantConnected, handleParticipantConnected);
+                room.on(LivekitClient.RoomEvent.ParticipantDisconnected, handleParticipantDisconnected);
+                room.on(LivekitClient.RoomEvent.Disconnected, handleDisconnected);
+                room.on(LivekitClient.RoomEvent.ConnectionQualityChanged, handleConnectionQuality);
+                
+                // Запрашиваем доступ к медиа
+                try {
+                    localAudioTrack = await LivekitClient.createLocalAudioTrack();
+                    localVideoTrack = await LivekitClient.createLocalVideoTrack({
+                        resolution: LivekitClient.VideoPresets.h720.resolution,
+                    });
+                    
+                    // Показываем своё видео
+                    localVideoTrack.attach(selfVideo);
+                    
+                } catch (mediaError) {
+                    console.warn('Не удалось получить доступ к медиа:', mediaError);
+                    showStatus('Разрешите доступ к камере и микрофону', 5000);
+                }
+                
+                // Подключаемся к комнате
+                await room.connect(livekitUrl, token);
+                
+                // Публикуем треки
+                if (localAudioTrack) {
+                    await room.localParticipant.publishTrack(localAudioTrack);
+                }
+                if (localVideoTrack) {
+                    await room.localParticipant.publishTrack(localVideoTrack);
+                }
+                
+                // Обновляем интерфейс
+                loadingScreen.classList.add('hidden');
+                updateParticipantCount();
+                showStatus('✅ Подключено к звонку', 2000);
+                
+            } catch (error) {
+                console.error('Ошибка подключения:', error);
+                errorMessage.textContent = error.message || 'Не удалось подключиться к звонку';
+                loadingScreen.classList.add('hidden');
+                errorScreen.classList.add('visible');
+            }
+        }
+        
+        function handleTrackSubscribed(track, publication, participant) {
+            console.log('Получен трек от:', participant.identity);
+            
+            if (track.kind === 'video') {
+                track.attach(remoteVideo);
+            } else if (track.kind === 'audio') {
+                track.attach(new Audio());
+            }
+            
+            updateParticipantCount();
+        }
+        
+        function handleTrackUnsubscribed(track, publication, participant) {
+            console.log('Трек отписан:', participant.identity);
+            track.detach();
+            updateParticipantCount();
+        }
+        
+        function handleParticipantConnected(participant) {
+            console.log('Участник подключился:', participant.identity);
+            participants.set(participant.identity, participant);
+            updateParticipantCount();
+            showStatus(`👤 ${participant.name || 'Собеседник'} присоединился`, 3000);
+        }
+        
+        function handleParticipantDisconnected(participant) {
+            console.log('Участник отключился:', participant.identity);
+            participants.delete(participant.identity);
+            updateParticipantCount();
+            showStatus(`👋 ${participant.name || 'Собеседник'} покинул звонок`, 3000);
+        }
+        
+        function handleDisconnected() {
+            console.log('Отключено от комнаты');
+            showStatus('❌ Отключено от звонка', 3000);
+            setTimeout(() => {
+                window.close();
+            }, 3000);
+        }
+        
+        function handleConnectionQuality(quality) {
+            console.log('Качество соединения:', quality);
+        }
+        
+        function updateParticipantCount() {
+            if (!room) return;
+            const count = room.participants.size + 1; // +1 за себя
+            participantCount.textContent = count;
+        }
+        
+        // Управление микрофоном
+        async function toggleMute() {
+            if (!localAudioTrack) return;
+            
+            try {
+                if (isMuted) {
+                    await localAudioTrack.unmute();
+                    muteBtn.innerHTML = '🎤<span>Микрофон</span>';
+                    muteBtn.classList.remove('muted');
+                    showStatus('🔊 Микрофон включён');
+                } else {
+                    await localAudioTrack.mute();
+                    muteBtn.innerHTML = '🔇<span>Микрофон</span>';
+                    muteBtn.classList.add('muted');
+                    showStatus('🔇 Микрофон выключён');
+                }
+                isMuted = !isMuted;
+            } catch (error) {
+                console.error('Ошибка переключения микрофона:', error);
+                showStatus('❌ Ошибка доступа к микрофону');
+            }
+        }
+        
+        // Управление видео
+        async function toggleVideo() {
+            if (!localVideoTrack) return;
+            
+            try {
+                if (isVideoEnabled) {
+                    await localVideoTrack.mute();
+                    selfVideo.classList.add('hidden');
+                    videoBtn.innerHTML = '📹<span>Видео</span>';
+                    videoBtn.classList.add('video-off');
+                    showStatus('📹 Видео выключено');
+                } else {
+                    await localVideoTrack.unmute();
+                    selfVideo.classList.remove('hidden');
+                    videoBtn.innerHTML = '📹<span>Видео</span>';
+                    videoBtn.classList.remove('video-off');
+                    showStatus('📹 Видео включено');
+                }
+                isVideoEnabled = !isVideoEnabled;
+            } catch (error) {
+                console.error('Ошибка переключения видео:', error);
+                showStatus('❌ Ошибка доступа к камере');
+            }
+        }
+        
+        // Завершение звонка
+        async function endCall() {
+            if (room) {
+                showStatus('Завершение звонка...');
+                await room.disconnect();
+                setTimeout(() => {
+                    window.close();
+                }, 1000);
+            } else {
+                window.close();
+            }
+        }
+        
+        // Переключение размера своего видео
+        selfVideo.addEventListener('click', () => {
+            selfVideo.classList.toggle('minimized');
+        });
+        
+        // Обработка закрытия страницы
+        window.addEventListener('beforeunload', () => {
+            if (room) {
+                room.disconnect();
+            }
+        });
+    </script>
+</body>
+</html>
