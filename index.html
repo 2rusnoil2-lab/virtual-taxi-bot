@@ -1,123 +1,35 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-    <meta charset="utf-8">
-    <title>Виртуальное такси - звонок</title>
-    <script src="https://unpkg.com/livekit-client/dist/livekit-client.umd.js"></script>
-    <style>
-        body { margin: 0; padding: 20px; font-family: sans-serif; background: #1a1a1a; color: white; }
-        #status { margin-bottom: 20px; padding: 10px; background: #333; border-radius: 5px; }
-        #video-container { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
-        .participant { background: #2a2a2a; border-radius: 10px; overflow: hidden; width: 45%; min-width: 300px; }
-        .participant video { width: 100%; height: auto; display: block; background: #000; }
-        .participant .label { padding: 8px; text-align: center; background: #3a3a3a; }
-        .controls { margin-top: 20px; text-align: center; }
-        button { padding: 12px 24px; margin: 0 10px; font-size: 16px; cursor: pointer; border: none; border-radius: 5px; background: #4CAF50; color: white; }
-        button.danger { background: #f44336; }
-    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Виртуальное такси</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
-    <div id="status">🔌 Подключение к звонку...</div>
-    <div id="video-container" style="display: none;"></div>
-    <div class="controls" style="display: none;">
-        <button id="mute-btn">🔊 Выключить микрофон</button>
-        <button id="video-btn">📹 Выключить видео</button>
-        <button id="leave-btn" class="danger">❌ Покинуть звонок</button>
+    <div class="container">
+        <header>
+            <h1>🚖 Виртуальное такси</h1>
+            <p class="subtitle">Выберите таксиста (психолога/собеседника) для разговора</p>
+        </header>
+
+        <div class="filters">
+            <button class="filter-btn active" data-filter="all">Все</button>
+            <button class="filter-btn" data-filter="psychologist">Психологи</button>
+            <button class="filter-btn" data-filter="listener">Слушатели</button>
+            <button class="filter-btn" data-filter="chat">Собеседники</button>
+        </div>
+
+        <div class="drivers-list" id="driversList">
+            <div class="loading">Загрузка водителей...</div>
+        </div>
+
+        <div class="info-block">
+            <p>🪟 Вы можете включить «шторку» и оставаться анонимным</p>
+        </div>
     </div>
 
-    <script>
-        (async function() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const livekitUrl = urlParams.get('url');
-            const roomName = urlParams.get('room');
-            const token = urlParams.get('token');
-
-            const statusDiv = document.getElementById('status');
-            const videoContainer = document.getElementById('video-container');
-            const controlsDiv = document.querySelector('.controls');
-
-            if (!livekitUrl || !roomName || !token) {
-                statusDiv.innerText = '❌ Ошибка: Не хватает параметров для подключения.';
-                return;
-            }
-
-            statusDiv.innerText = `🔄 Подключение к комнате ${roomName}...`;
-
-            try {
-                const room = new LivekitClient.Room({
-                    adaptiveStream: true,
-                    dynacast: true,
-                });
-
-                room.on(LivekitClient.RoomEvent.ParticipantConnected, (participant) => {
-                    console.log('Участник подключился:', participant.identity);
-                });
-
-                room.on(LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
-                    console.log('Получен трек:', track.kind, 'от', participant.identity);
-                    const element = track.attach();
-                    const participantDiv = document.getElementById(`p-${participant.identity}`) || document.createElement('div');
-                    
-                    if (!participantDiv.id) {
-                        participantDiv.id = `p-${participant.identity}`;
-                        participantDiv.className = 'participant';
-                        participantDiv.innerHTML = `<div class="label">${participant.name || participant.identity}</div>`;
-                        videoContainer.appendChild(participantDiv);
-                    }
-                    
-                    const videoWrapper = document.createElement('div');
-                    videoWrapper.className = 'video-wrapper';
-                    videoWrapper.appendChild(element);
-                    participantDiv.appendChild(videoWrapper);
-                });
-
-                room.on(LivekitClient.RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
-                    console.log('Трек отписан:', track.kind);
-                    track.detach();
-                });
-
-                room.on(LivekitClient.RoomEvent.Disconnected, () => {
-                    statusDiv.innerText = '🔌 Отключено от звонка.';
-                    videoContainer.innerHTML = '';
-                    controlsDiv.style.display = 'none';
-                    statusDiv.style.display = 'block';
-                });
-
-                await room.connect(livekitUrl, token);
-
-                // Опубликовать свои видео и аудио
-                await room.localParticipant.enableCameraAndMicrophone();
-                
-                statusDiv.style.display = 'none';
-                videoContainer.style.display = 'flex';
-                controlsDiv.style.display = 'block';
-
-                // Элементы управления
-                let audioEnabled = true;
-                let videoEnabled = true;
-
-                document.getElementById('mute-btn').onclick = () => {
-                    audioEnabled = !audioEnabled;
-                    room.localParticipant.setMicrophoneEnabled(audioEnabled);
-                    document.getElementById('mute-btn').innerHTML = audioEnabled ? '🔊 Выключить микрофон' : '🔇 Включить микрофон';
-                };
-
-                document.getElementById('video-btn').onclick = () => {
-                    videoEnabled = !videoEnabled;
-                    room.localParticipant.setCameraEnabled(videoEnabled);
-                    document.getElementById('video-btn').innerHTML = videoEnabled ? '📹 Выключить видео' : '📹 Включить видео';
-                };
-
-                document.getElementById('leave-btn').onclick = () => {
-                    room.disconnect();
-                    window.close();
-                };
-
-            } catch (error) {
-                console.error('Ошибка подключения:', error);
-                statusDiv.innerText = `❌ Ошибка подключения: ${error.message}`;
-            }
-        })();
-    </script>
+    <script src="app.js"></script>
 </body>
 </html>
